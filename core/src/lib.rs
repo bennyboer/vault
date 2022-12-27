@@ -1,7 +1,6 @@
 extern crate core;
 
 use std::error::Error;
-
 use std::fs::File;
 use std::io::{Read, Write};
 
@@ -20,6 +19,7 @@ mod keygen;
 
 type Cypher = ChaChaPoly1305<XChaCha20, U24>;
 
+const VERSION: u8 = 1;
 const BUFFER_SIZE: usize = 1024;
 
 pub fn encrypt_file(
@@ -52,13 +52,21 @@ pub fn decrypt_file(
     target_path: &str,
     password: &str,
 ) -> Result<(), Box<dyn Error>> {
+    let mut version = [0u8; 1];
     let mut salt = [0u8; 32];
     let mut nonce = [0u8; 19];
 
     let mut source_file = File::open(source_path)?;
     let mut target_file = File::create(target_path)?;
 
-    let mut bytes_read = source_file.read(&mut salt)?;
+    let mut bytes_read = source_file.read(&mut version)?;
+    if bytes_read != version.len() {
+        return Err(Box::new(DecryptionError::new(
+            "Invalid file format".to_string(),
+        )));
+    }
+
+    bytes_read = source_file.read(&mut salt)?;
     if bytes_read != salt.len() {
         return Err(Box::new(DecryptionError::new(
             "Invalid file format".to_string(),
@@ -139,11 +147,12 @@ fn write_encrypted_file(
     }
 }
 
-fn write_header(file: &mut File, salt: &[u8], nonce: &[u8]) -> Result<(), EncryptionError> {
-    file.write(salt)
-        .map_err(|e| EncryptionError::new(e.to_string()))?;
-    file.write(nonce)
-        .map_err(|e| EncryptionError::new(e.to_string()))?;
+fn write_header(file: &mut File, salt: &[u8], nonce: &[u8]) -> Result<(), Box<dyn Error>> {
+    let version_buffer: [u8; 1] = [VERSION];
+    file.write(&version_buffer)?;
+
+    file.write(salt)?;
+    file.write(nonce)?;
 
     Ok(())
 }
