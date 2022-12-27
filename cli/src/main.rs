@@ -63,9 +63,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run(mode: Mode, source: &str, _retain_source: bool) -> Result<(), Box<dyn Error>> {
+fn run(mode: Mode, source: &str, retain_source: bool) -> Result<(), Box<dyn Error>> {
     // TODO check whether source is a file or a directory
-    // TODO honor retain_source flag
 
     let mut password = rpassword::prompt_password("Password: ")?;
 
@@ -89,6 +88,11 @@ fn run(mode: Mode, source: &str, _retain_source: bool) -> Result<(), Box<dyn Err
     }?;
 
     password.zeroize();
+
+    let delete_source = !retain_source;
+    if delete_source {
+        std::fs::remove_file(source)?;
+    }
 
     Ok(())
 }
