@@ -3,6 +3,7 @@ use std::error::Error;
 use cmd_args::{arg, option, parser, Group};
 use zeroize::Zeroize;
 
+#[derive(Copy, Clone)]
 enum Mode {
     Open,
     Close,
@@ -64,30 +65,60 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run(mode: Mode, source: &str, retain_source: bool) -> Result<(), Box<dyn Error>> {
-    // TODO check whether source is a file or a directory
-
     let mut password = rpassword::prompt_password("Password: ")?;
 
+    let meta_data = std::fs::metadata(source)?;
+    if meta_data.is_file() {
+        run_for_file(mode, source, &password, retain_source)?;
+    } else {
+        run_for_directory(mode, source, &password, retain_source)?;
+    }
+
+    password.zeroize();
+
+    Ok(())
+}
+
+fn run_for_directory(
+    mode: Mode,
+    source: &str,
+    password: &str,
+    retain_source: bool,
+) -> Result<(), Box<dyn Error>> {
+    let entries = std::fs::read_dir(source)?;
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        let path_str = path.to_str().unwrap();
+
+        let meta_data = entry.metadata()?;
+        if meta_data.is_file() {
+            run_for_file(mode, path_str, &password, retain_source)?;
+        } else {
+            run_for_directory(mode, path_str, &password, retain_source)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn run_for_file(
+    mode: Mode,
+    source: &str,
+    password: &str,
+    retain_source: bool,
+) -> Result<(), Box<dyn Error>> {
     match mode {
-        Mode::Open => core::decrypt_file(
+        Mode::Open => vault_core::decrypt_file(
             source,
             &format!(
-                "{}.opened",
+                "{}",
                 source.strip_suffix(".closed").unwrap_or(source).to_string()
             ),
             &password,
         ),
-        Mode::Close => core::encrypt_file(
-            source,
-            &format!(
-                "{}.closed",
-                source.strip_suffix(".opened").unwrap_or(source).to_string()
-            ),
-            &password,
-        ),
+        Mode::Close => vault_core::encrypt_file(source, &format!("{}.closed", source), &password),
     }?;
-
-    password.zeroize();
 
     let delete_source = !retain_source;
     if delete_source {

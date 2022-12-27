@@ -1,7 +1,13 @@
 [package]
-name = "core"
+name = "vault-core"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+authors = ["Benjamin Eder"]
+description = "Password based encryption/decryption"
+repository = "https://github.com/bennyboer/vault"
+keywords = ["encryption", "decryption", "password"]
+categories = ["command-line-utilities", "cryptography"]
 
 [dependencies]
 argon2 = "0.4.1"
