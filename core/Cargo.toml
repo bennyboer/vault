@@ -1,0 +1,11 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+argon2 = "0.4.1"
+rand = "0.8.5"
+chacha20poly1305 = { version = "0.10.1", features = ["stream"] }
+chacha20 = "0.9.0"
+zeroize = "1.5.7"
