@@ -1,43 +1,91 @@
-use std::env;
 use std::error::Error;
 
+use cmd_args::{arg, option, parser, Group};
 use zeroize::Zeroize;
 
+enum Mode {
+    Open,
+    Close,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+    let group = Group::new(
+        Box::new(|_args, _options| {
+            println!("Check vault --help for usage information");
+        }),
+        "Vault CLI",
+    )
+    .add_option(
+        option::Descriptor::new(
+            "retain-source",
+            option::Type::Bool { default: false },
+            "Whether to retain the source file(s) after encryption/decryption",
+        )
+        .add_alias("r"),
+    )
+    .add_child(
+        "open",
+        Some(vec!["o"]),
+        Group::new(
+            Box::new(|args, options| {
+                let retain_source = options.get("retain-source").unwrap().bool().unwrap();
+                let source = args.get(0).unwrap().str().unwrap();
 
-    if args.len() != 3 {
-        panic!("Usage: ./vault [open/close] <file_path>");
-    }
+                run(Mode::Open, source, retain_source).unwrap();
+            }),
+            "Open the vault (Decrypting file(s))",
+        )
+        .add_argument(arg::Descriptor::new(
+            arg::Type::Str,
+            "A file or a directory to decrypt all files recursively in",
+        )),
+    )
+    .add_child(
+        "close",
+        Some(vec!["c"]),
+        Group::new(
+            Box::new(|args, options| {
+                let retain_source = options.get("retain-source").unwrap().bool().unwrap();
+                let source = args.get(0).unwrap().str().unwrap();
 
-    let mode = &args[1][..];
-    let file_path = &args[2][..];
+                run(Mode::Close, source, retain_source).unwrap();
+            }),
+            "Close the vault (Encrypting file(s))",
+        )
+        .add_argument(arg::Descriptor::new(
+            arg::Type::Str,
+            "A file or a directory to encrypt all files recursively in",
+        )),
+    );
+
+    parser::parse(group, None)?;
+
+    Ok(())
+}
+
+fn run(mode: Mode, source: &str, _retain_source: bool) -> Result<(), Box<dyn Error>> {
+    // TODO check whether source is a file or a directory
+    // TODO honor retain_source flag
+
     let mut password = rpassword::prompt_password("Password: ")?;
 
     match mode {
-        "open" => core::decrypt_file(
-            file_path,
+        Mode::Open => core::decrypt_file(
+            source,
             &format!(
                 "{}.opened",
-                file_path
-                    .strip_suffix(".closed")
-                    .unwrap_or(file_path)
-                    .to_string()
+                source.strip_suffix(".closed").unwrap_or(source).to_string()
             ),
             &password,
         ),
-        "close" => core::encrypt_file(
-            file_path,
+        Mode::Close => core::encrypt_file(
+            source,
             &format!(
                 "{}.closed",
-                file_path
-                    .strip_suffix(".opened")
-                    .unwrap_or(file_path)
-                    .to_string()
+                source.strip_suffix(".opened").unwrap_or(source).to_string()
             ),
             &password,
         ),
-        _ => panic!("Either specify 'open' or 'close' as the first argument"),
     }?;
 
     password.zeroize();
