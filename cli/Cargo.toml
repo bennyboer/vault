@@ -1,6 +1,6 @@
 [package]
 name = "vault-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 authors = ["Benjamin Eder"]
@@ -8,6 +8,7 @@ description = "A cli tool for password based encryption/decryption"
 repository = "https://github.com/bennyboer/vault"
 keywords = ["encryption", "decryption", "password", "cli"]
 categories = ["command-line-utilities", "cryptography"]
+readme = "../README.md"
 
 [dependencies]
 vault-core = "0.1.0"
