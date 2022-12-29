@@ -24,6 +24,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
         .add_alias("r"),
     )
+    .add_option(
+        option::Descriptor::new(
+            "password",
+            option::Type::Str {
+                default: String::new(),
+            },
+            "The password to use for encryption/decryption",
+        )
+        .add_alias("p"),
+    )
     .add_child(
         "open",
         Some(vec!["o"]),
@@ -31,8 +41,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             Box::new(|args, options| {
                 let retain_source = options.get("retain-source").unwrap().bool().unwrap();
                 let source = args.get(0).unwrap().str().unwrap();
+                let password = options
+                    .get("password")
+                    .unwrap()
+                    .str()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string());
 
-                run(Mode::Open, source, retain_source).unwrap();
+                if let Err(e) = run(Mode::Open, source, retain_source, password) {
+                    println!("Failed to decrypt: {}", e);
+                }
             }),
             "Open the vault (Decrypting file(s))",
         )
@@ -48,8 +66,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             Box::new(|args, options| {
                 let retain_source = options.get("retain-source").unwrap().bool().unwrap();
                 let source = args.get(0).unwrap().str().unwrap();
+                let password = options
+                    .get("password")
+                    .unwrap()
+                    .str()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string());
 
-                run(Mode::Close, source, retain_source).unwrap();
+                if let Err(e) = run(Mode::Close, source, retain_source, password) {
+                    println!("Failed to encrypt: {}", e);
+                }
             }),
             "Close the vault (Encrypting file(s))",
         )
@@ -64,8 +90,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn run(mode: Mode, source: &str, retain_source: bool) -> Result<(), Box<dyn Error>> {
-    let mut password = rpassword::prompt_password("Password: ")?;
+fn run(
+    mode: Mode,
+    source: &str,
+    retain_source: bool,
+    password: Option<String>,
+) -> Result<(), Box<dyn Error>> {
+    let mut password = password
+        .map(|p| Ok(p))
+        .unwrap_or_else(|| rpassword::prompt_password("Password: "))?;
 
     let meta_data = std::fs::metadata(source)?;
     if meta_data.is_file() {
@@ -108,17 +141,18 @@ fn run_for_file(
     password: &str,
     retain_source: bool,
 ) -> Result<(), Box<dyn Error>> {
-    match mode {
-        Mode::Open => vault_core::decrypt_file(
-            source,
-            &format!(
-                "{}",
-                source.strip_suffix(".closed").unwrap_or(source).to_string()
-            ),
-            &password,
-        ),
-        Mode::Close => vault_core::encrypt_file(source, &format!("{}.closed", source), &password),
-    }?;
+    let target_path = match mode {
+        Mode::Open => source.strip_suffix(".closed").unwrap_or(source).to_string(),
+        Mode::Close => format!("{}.closed", source),
+    };
+
+    if let Err(e) = match mode {
+        Mode::Open => vault_core::decrypt_file(source, &target_path, &password),
+        Mode::Close => vault_core::encrypt_file(source, &target_path, &password),
+    } {
+        std::fs::remove_file(target_path)?;
+        return Err(e);
+    }
 
     let delete_source = !retain_source;
     if delete_source {
