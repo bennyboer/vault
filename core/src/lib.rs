@@ -21,6 +21,7 @@ type Cypher = ChaChaPoly1305<XChaCha20, U24>;
 
 const VERSION: u8 = 1;
 const BUFFER_SIZE: usize = 1024;
+const AUTHENTICATION_TAG_SIZE: usize = 16;
 
 pub fn encrypt_file(
     source_path: &str,
@@ -98,11 +99,12 @@ fn write_decrypted_file(
     target: &mut File,
     mut decryptor: Decryptor<Cypher, StreamBE32<Cypher>>,
 ) -> Result<(), Box<dyn Error>> {
-    let mut buffer = [0u8; BUFFER_SIZE];
+    const DECRYPTION_BUFFER_SIZE: usize = BUFFER_SIZE + AUTHENTICATION_TAG_SIZE;
+    let mut buffer = [0u8; DECRYPTION_BUFFER_SIZE];
 
     loop {
         let bytes_read = src.read(&mut buffer)?;
-        let all_bytes_read = bytes_read < BUFFER_SIZE;
+        let all_bytes_read = bytes_read < DECRYPTION_BUFFER_SIZE;
         let buffer_slice = &buffer[..bytes_read];
 
         if all_bytes_read {
